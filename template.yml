@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: A sample SAM template for deploying Lambda functions.
+
+Resources:
+  mySNSTopic:
+    Type: 'AWS::SNS::Topic'
+# Details about my Lambda function
+  MyLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src/handlers
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      FunctionName: 'my-demo-app-new'
+# Instructs MyLambdaFunction is published to an alias named "live".      
+      AutoPublishAlias: live
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref CounterTable
+          REGION: !Ref AWS::Region
+          COUNTER_KEY: "demo-key"
+      Events:
+        GetDataFunctionApi:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: MyApi
+            Method: GET
+            Path: /clouds
+            TimeoutInMillis: 15000
+      Description: Get data from DynamoDB table   
+# Grants this function permission to call lambda:InvokeFunction
+      Policies:
+        - AdministratorAccess
+        - Version: "2012-10-17"
+          Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "lambda:InvokeFunction"
+            Resource: '*'
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "xray:PutTraceSegments"
+              - "xray:PutTelemetryRecords"
+            Resource: '*'
+      DeploymentPreference:
+# Specifies the deployment configuration      
+          Type: Linear10PercentEvery1Minute
+          Alarms:
+            # A list of alarms that you want to monitor
+            - !Ref AliasErrorMetricGreaterThanZeroAlarm
+            - !Ref LatestVersionErrorMetricGreaterThanZeroAlarm
+# Specifies Lambda functions for deployment lifecycle hooks
+          Hooks:
+            PreTraffic: !Ref PreTrafficLambdaFunction
+            PostTraffic: !Ref PostTrafficLambdaFunction
+          TriggerConfigurations:
+            - TriggerEvents:
+                - DeploymentSuccess
+                - DeploymentFailure
+              TriggerName: TestTrigger
+              TriggerTargetArn:
+                Ref: mySNSTopic  
+# Specifies the BeforeAllowTraffic lifecycle hook Lambda function
+  PreTrafficLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src/pre-traffic-hook
+      Handler: preTrafficHook.lambda_handler
+      Policies:
+        - Version: "2012-10-17"
+# Grants this function permission to call codedeploy:PutLifecycleEventHookExecutionStatus        
+          Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "codedeploy:PutLifecycleEventHookExecutionStatus"
+            Resource:
+              !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*'
+        - Version: "2012-10-17"
+# Grants this function permission to call lambda:InvokeFunction        
+          Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "lambda:InvokeFunction"
+            Resource: !Ref MyLambdaFunction.Version
+      Runtime: python3.8
+# Specifies the name of the Lambda hook function      
+      FunctionName: 'CodeDeployHook_preTrafficHook'
+      DeploymentPreference:
+        Enabled: false
+      Timeout: 5
+      Environment:
+        Variables:
+          NewVersion: !Ref MyLambdaFunction.Version
+# Specifies the AfterAllowTraffic lifecycle hook Lambda function
+  PostTrafficLambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./src/post-traffic-hook
+      Handler: postTrafficHook.lambda_handler
+      Policies:
+        - Version: "2012-10-17"
+# Grants this function permission to call codedeploy:PutLifecycleEventHookExecutionStatus        
+          Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "codedeploy:PutLifecycleEventHookExecutionStatus"
+            Resource:
+              !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*'
+        - Version: "2012-10-17"
+# Grants this function permission to call lambda:InvokeFunction        
+          Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "lambda:InvokeFunction"
+            Resource: !Ref MyLambdaFunction.Version
+      Runtime: python3.8
+# Specifies the name of the Lambda hook function      
+      FunctionName: 'CodeDeployHook_postTrafficHook'
+      DeploymentPreference:
+        Enabled: false
+      Timeout: 5
+      Environment:
+        Variables:
+          NewVersion: !Ref MyLambdaFunction.Version
+# Specifies Alarms         
+  AliasErrorMetricGreaterThanZeroAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${MyLambdaFunction}:live"
+        - Name: FunctionName
+          Value: !Ref MyLambdaFunction
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+  LatestVersionErrorMetricGreaterThanZeroAlarm:
+    Type: "AWS::CloudWatch::Alarm"
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: !Sub "${MyLambdaFunction}:live"
+        - Name: FunctionName
+          Value: !Ref MyLambdaFunction
+        - Name: ExecutedVersion
+          Value: !GetAtt MyLambdaFunction.Version.Version
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+# Create DynamoDB table
+  CounterTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    Properties:
+      TableName: stellitime-api-counters
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+# Create API 
+  MyApi:
+    Type: 'AWS::Serverless::HttpApi'
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+Outputs:
+  GetDataFunctionApi:
+    Description: API Gateway endpoint URL for Data Listing Function
+    Value:
+      'Fn::Sub': 'https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/clouds'
+  LambdaFunctionUrl:
+    Description: URL for Lambda Get Function
+    Value:
+      'Fn::Sub': >-
+        https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${MyLambdaFunction}/aliases/live?tab=configuration
+  CodeDeployUrl:
+    Description: URL for CodeDeploy Deployments
+    Value:
+      'Fn::Sub': >-
+        https://console.aws.amazon.com/codesuite/codedeploy/deployments?region=${AWS::Region}
+  DynamoDBUrl:
+    Description: URL for DynamoDB CloudProviders table
+    Value:
+      'Fn::Sub': >-
+        https://console.aws.amazon.com/dynamodb/home?region=${AWS::Region}#tables:selected=${CounterTable};tab=items
