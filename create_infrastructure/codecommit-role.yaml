@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cross Account Role to Allow Access to CodePipeline in Tools Account
+Parameters:
+  TestAccount:
+    Description: AWS AccountNumber for test account
+    Type: Number
+  CMKARN:
+    Description: ARN of the KMS CMK creates in Tools account
+    Type: String
+Resources:
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ToolsAcctCodePipelineCodeCommitRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Ref TestAccount
+            Action:
+              - sts:AssumeRole
+      Path: /
+
+  Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ToolsAcctCodePipelineCodeCommitPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - codecommit:BatchGetRepositories
+              - codecommit:Get*
+              - codecommit:GitPull
+              - codecommit:List*
+              - codecommit:CancelUploadArchive
+              - codecommit:UploadArchive
+              - s3:*
+            Resource: "*"
+          -
+            Effect: Allow
+            Action:
+              - kms:*
+            Resource: !Ref CMKARN
+      Roles:
+        -
+          !Ref Role
