@@ -1,6 +1,6 @@
 # CI/CD pipeline for Serverless application
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-## Building, testing, and deploying Serverless application using CodeBuild and CodePipeline
+
 
 
 ## Table of contents
@@ -10,7 +10,7 @@
 * [Cleanup](#contact)
 
 ## General info
-This project includes the following files and folders.
+Building, testing, and deploying Serverless application using CodeBuild and CodePipeline.
 
 ## Solution
 ![Architecture diagram](./img/architecture.png)
