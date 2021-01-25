@@ -1,8 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: A sample SAM template for deploying Lambda functions.
+Description: A SAM template for deploying serverless application
+
+Parameters:
+  TableName:
+    Type: String
+    Default: stellitime-api-counters
 
 Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: AWS_IAM
   mySNSTopic:
     Type: 'AWS::SNS::Topic'
 # Details about my Lambda function
@@ -12,6 +23,7 @@ Resources:
       CodeUri: ./src/handlers
       Handler: app.lambda_handler
       Runtime: python3.8
+      Tracing: Active  # enables X-Ray tracing
       FunctionName: 'my-demo-app-new'
 # Instructs MyLambdaFunction is published to an alias named "live".      
       AutoPublishAlias: live
@@ -21,18 +33,21 @@ Resources:
           REGION: !Ref AWS::Region
           COUNTER_KEY: "demo-key"
       Events:
-        GetDataFunctionApi:
-          Type: HttpApi
+        Get:
+          Type: Api
           Properties:
-            ApiId:
-              Ref: MyApi
+            RestApiId: !Ref MyApi
             Method: GET
-            Path: /clouds
-            TimeoutInMillis: 15000
-      Description: Get data from DynamoDB table   
+            Path: /
+        Post:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Method: POST
+            Path: /    
+      Description: Get and post data from DynamoDB table   
 # Grants this function permission to call lambda:InvokeFunction
       Policies:
-        - AdministratorAccess
         - Version: "2012-10-17"
           Statement: 
           - Effect: "Allow"
@@ -47,6 +62,19 @@ Resources:
               - "xray:PutTraceSegments"
               - "xray:PutTelemetryRecords"
             Resource: '*'
+          - Effect: "Allow"
+            Action:
+              - "dynamodb:BatchGet*"
+              - "dynamodb:DescribeStream"
+              - "dynamodb:DescribeTable"
+              - "dynamodb:Get*"
+              - "dynamodb:Query"
+              - "dynamodb:Scan"
+              - "dynamodb:BatchWrite*"
+              - "dynamodb:Update*"
+              - "dynamodb:PutItem"
+            Resource:
+              !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}'
       DeploymentPreference:
 # Specifies the deployment configuration      
           Type: Linear10PercentEvery1Minute
@@ -167,7 +195,7 @@ Resources:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Delete
     Properties:
-      TableName: stellitime-api-counters
+      TableName: !Ref TableName
       KeySchema:
         - AttributeName: "id"
           KeyType: "HASH"
@@ -177,18 +205,8 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
-# Create API 
-  MyApi:
-    Type: 'AWS::Serverless::HttpApi'
-    Properties:
-      CorsConfiguration:
-        AllowOrigins:
-          - '*'
+
 Outputs:
-  GetDataFunctionApi:
-    Description: API Gateway endpoint URL for Data Listing Function
-    Value:
-      'Fn::Sub': 'https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/clouds'
   LambdaFunctionUrl:
     Description: URL for Lambda Get Function
     Value:
@@ -204,3 +222,7 @@ Outputs:
     Value:
       'Fn::Sub': >-
         https://console.aws.amazon.com/dynamodb/home?region=${AWS::Region}#tables:selected=${CounterTable};tab=items
+  GetDataFunctionApi:
+    Description: API Gateway endpoint URL for Data Listing Function
+    Value:
+      'Fn::Sub': 'https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/Prod'        

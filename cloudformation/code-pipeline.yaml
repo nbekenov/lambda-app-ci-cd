@@ -4,7 +4,7 @@ Parameters:
   ProjectName:
     Description: Name of the Project
     Type: String
-    Default: sample-lambda
+    Default: stellitime-api
   S3Bucket:
     Description: S3 Bucket, which will hold the artifacts
     Type: String
@@ -21,7 +21,9 @@ Parameters:
     Description: Conditionally creates the resources for cross account access
     Type: String
     Default: false
-
+  RepositoryName:
+    Type: String
+    Default: demo-api-code
 Conditions:
   AddCodeBuildResource: !Equals [ !Ref CrossAccountCondition, true ]
 
@@ -73,6 +75,25 @@ Resources:
               - logs:CreateLogStream
               - logs:PutLogEvents
             Resource: arn:aws:logs:*:*:*
+          -
+            Effect: Allow
+            Action:
+              - iam:ListPolicies
+              - iam:ListRoles
+              - iam:CreateRole
+              - iam:CreatePolicy
+              - iam:GetRole
+              - iam:DeleteRole
+              - iam:PutRolePolicy
+              - iam:PassRole
+              - iam:DeleteRolePolicy
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+              - codebuild:CreateReportGroup
+              - codebuild:CreateReport
+              - codebuild:BatchPutTestCases
+              - codebuild:UpdateReport
+            Resource: "*"
       Roles:
         -
           !Ref BuildProjectRole
@@ -90,7 +111,7 @@ Resources:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
         EnvironmentVariables:
-          - Name: S3Bucket
+          - Name: S3_BUCKET_NAME
             Value: !Ref S3Bucket
           - Name: KMSKey
             Value: !Ref CMKARN
@@ -197,10 +218,10 @@ Resources:
                 Version: '1'
                 Provider: CodeCommit
               Configuration:
-                RepositoryName: "lambda-ci-cd"
+                RepositoryName: !Ref RepositoryName
                 OutputArtifactFormat: CODE_ZIP
                 PollForSourceChanges: false
-                BranchName: master
+                BranchName: dev
               OutputArtifacts:
                 - Name: SCCheckoutArtifact
               RunOrder: 1
@@ -235,9 +256,9 @@ Resources:
                 Version: '1'
                 Provider: CloudFormation
               Configuration:
-                ChangeSetName: sample-lambda-test
+                ChangeSetName: stellitime-api-stack
                 ActionMode: CHANGE_SET_REPLACE
-                StackName: sample-lambda-test
+                StackName: stellitime-api-stack
                 Capabilities: CAPABILITY_NAMED_IAM
                 TemplatePath: BuildOutput::package.yml
                 #RoleArn: !Sub arn:aws:iam::${TestAccount}:role/cloudformationdeployer-role
@@ -262,9 +283,9 @@ Resources:
                 Version: '1'
                 Provider: CloudFormation
               Configuration:
-                ChangeSetName: sample-lambda-test
+                ChangeSetName: stellitime-api-stack
                 ActionMode: CHANGE_SET_EXECUTE
-                StackName: sample-lambda-test
+                StackName: stellitime-api-stack
                 #RoleArn: !Sub arn:aws:iam::${TestAccount}:role/cloudformationdeployer-role
                 RoleArn:
                   Fn::If:
@@ -300,9 +321,9 @@ Resources:
                 Version: '1'
                 Provider: CloudFormation
               Configuration:
-                ChangeSetName: sample-lambda-production
+                ChangeSetName: stellitime-api-production
                 ActionMode: CHANGE_SET_REPLACE
-                StackName: sample-lambda-production
+                StackName: stellitime-api-production
                 Capabilities: CAPABILITY_NAMED_IAM
                 TemplatePath: BuildOutput::package.yml
                 #RoleArn: !Sub arn:aws:iam::${ProductionAccount}:role/cloudformationdeployer-role
@@ -327,9 +348,9 @@ Resources:
                 Version: '1'
                 Provider: CloudFormation
               Configuration:
-                ChangeSetName: sample-lambda-production
+                ChangeSetName: stellitime-api-production
                 ActionMode: CHANGE_SET_EXECUTE
-                StackName: sample-lambda-production
+                StackName: stellitime-api-production
                 #RoleArn: !Sub arn:aws:iam::${ProductionAccount}:role/cloudformationdeployer-role
                 RoleArn:
                   Fn::If:

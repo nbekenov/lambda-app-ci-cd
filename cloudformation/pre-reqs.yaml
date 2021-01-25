@@ -10,7 +10,7 @@ Parameters:
   ProjectName:
     Description: Name of the Project
     Type: String
-    Default: sample-lambda
+    Default: stellitime-api
   CodeBuildCondition:
     Description: Conditionally adds the access required by code build project role
     Type: String
@@ -67,7 +67,7 @@ Resources:
   KMSAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: alias/kms-crossacount
+      AliasName: alias/kms-cross-acount
       TargetKeyId: !Ref KMSKey
   ArtifactBucket:
     Type: AWS::S3::Bucket

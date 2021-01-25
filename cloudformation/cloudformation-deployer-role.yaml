@@ -75,19 +75,27 @@ Resources:
             Action:
               - lambda:*
               - events:*
+              - apigateway:*
+              - dynamodb:*
+              - sns:*
+              - logs:*
+              - kms:*
+              - codedeploy:*
+              - cloudformation:*
+              - cloudwatch:*
+              - iam:ListRoles
+              - iam:ListPolicies
               - iam:CreateRole
               - iam:CreatePolicy
               - iam:GetRole
               - iam:DeleteRole
               - iam:PutRolePolicy
               - iam:PassRole
+              - iam:getRolePolicy
+              - iam:TagResource
               - iam:DeleteRolePolicy
               - iam:AttachRolePolicy
-              - cloudformation:*
               - iam:DetachRolePolicy
-              - apigateway:*
-              - dynamodb:*
-              - sns:*
             Resource: "*"
           -
             Effect: Allow

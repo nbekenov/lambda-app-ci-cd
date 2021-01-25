@@ -27,17 +27,17 @@ phases:
       - make lint
       - echo lint cloudformation template ...
       - cfn-lint template.yml
-      - echo validate SAM template ...
       - sam validate --template-file template.yml
       - echo run unit tests ...
       - make test
   build:
     commands:
       - echo "====================="
+      - echo S3_BUCKET_NAME = $S3_BUCKET_NAME
       - echo sam build ...
-      - sam build
+      - sam build --template-file template.yml
       - echo packege code ...
-      - sam package --template-file template.yml --output-template-file package.yml --s3-bucket $S3_BUCKET_NAME
+      - sam package --template-file .aws-sam/build/template.yaml --output-template-file package.yml --s3-bucket $S3_BUCKET_NAME
   post_build:
     commands:
       - echo "====================="
